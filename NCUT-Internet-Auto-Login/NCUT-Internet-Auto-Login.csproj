@@ -111,8 +111,6 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Program.cs" />
-    <Compile Include="WorkerRunner.cs" />
-    <Compile Include="AutoLoginService.cs" />
     <Compile Include="AppSettings.cs" />
     <Compile Include="SecurityHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
