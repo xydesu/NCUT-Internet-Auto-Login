@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - 'v*'
+  # 新增手動啟動觸發器
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '僅編譯不發佈 (true/false)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -22,37 +29,41 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet packages (GUI)
-        run: nuget restore NCUT-Internet-Auto-Login\NCUT-Internet-Auto-Login.csproj -PackagesDirectory packages
-
-      - name: Build GUI project (Release)
-        run: |
-          msbuild NCUT-Internet-Auto-Login\NCUT-Internet-Auto-Login.csproj `
-            /p:Configuration=Release `
-            /p:Platform=AnyCPU `
-            /t:Rebuild `
-            /v:minimal `
-            /nologo
-
       - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
 
-      - name: Publish Worker project (Release, self-contained)
+      - name: Restore NuGet packages
+        run: nuget restore NCUT-Internet-Auto-Login.sln
+
+      - name: Build GUI project (Release)
+        run: |
+          msbuild NCUT-Internet-Auto-Login\NCUT-Internet-Auto-Login.csproj `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU" `
+            /p:OutputPath=..\publish\gui\ `
+            /t:Rebuild `
+            /v:minimal `
+            /nologo
+
+      - name: Publish Worker project (Release)
         run: |
           dotnet publish NCUT-Internet-Auto-Login.Worker\NCUT-Internet-Auto-Login.Worker.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
             -p:PublishSingleFile=true `
+            -p:PublishReadyToRun=true `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -o publish\worker
 
+      # 只有在「推送 Tag」或「手動執行且 dry_run 為 false」時才執行 Release
       - name: Create GitHub Release
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'false')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            NCUT-Internet-Auto-Login\bin\Release\NCUT-Internet-Auto-Login.exe
-            publish\worker\NCUT-Internet-Auto-Login.Worker.exe
+            publish/gui/NCUT-Internet-Auto-Login.exe
+            publish/worker/NCUT-Internet-Auto-Login.Worker.exe
           generate_release_notes: true
