@@ -16,9 +16,13 @@ try
     currentProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
     System.Threading.Thread.CurrentThread.Priority = System.Threading.ThreadPriority.Highest;
 }
-catch
+catch (UnauthorizedAccessException)
 {
-    // 忽略權限不足或其他例外
+    // 忽略：在某些環境下無法調整優先級
+}
+catch (System.ComponentModel.Win32Exception)
+{
+    // 忽略：Win32 API 拒絕了優先級設定
 }
 
 host.Run();
