@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Weavers xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="FodyWeavers.xsd">
+  <Costura>
+    <!-- 嚙複堆蕭嚙稽嚙緘嚙褕組伐蕭A嚙踝蕭L嚙踝蕭嚙罵嚙諛動嵌嚙皚 -->
+    <ExcludeAssemblies>
+    </ExcludeAssemblies>
+    
+    <!-- 嚙請恬蕭嚙緹嚙褕歹蕭嚙?-->
+    <CreateTemporaryAssemblies>false</CreateTemporaryAssemblies>
+    
+    <!-- 嚙稽嚙緣嚙調試符賂蕭 -->
+    <IncludeDebugSymbols>false</IncludeDebugSymbols>
+    
+    <!-- 嚙課伐蕭嚙踝蕭嚙磐 -->
+    <DisableCompression>false</DisableCompression>
+  </Costura>
+</Weavers>

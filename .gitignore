@@ -1,0 +1,27 @@
+## Visual Studio ##
+.vs/
+[Bb]in/
+[Oo]bj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## NuGet ##
+packages/
+*.nupkg
+
+## MSBuild ##
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+## OS files ##
+[Tt]humbs.db
+ehthumbs.db
+Desktop.ini
+
+## Temp ##
+tmp.txt
+tmp2.txt
+temp/
