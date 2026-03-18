@@ -15,6 +15,8 @@ packages/
 msbuild.log
 msbuild.err
 msbuild.wrn
+build_log.txt
+build_errors.txt
 
 ## OS files ##
 [Tt]humbs.db
