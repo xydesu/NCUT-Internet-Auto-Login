@@ -144,7 +144,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
-    <None Include="README.md" />
+
     <None Include="UI??庫選????md" />
     <None Include="如?添??示.md" />
     <None Include="後台???能使用??.md" />
