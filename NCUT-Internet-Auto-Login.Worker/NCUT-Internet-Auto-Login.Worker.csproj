@@ -6,6 +6,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-NCUT_Internet_Auto_Login.Worker-06285833-aba3-4af9-aa8b-515eebb27070</UserSecretsId>
     <RootNamespace>NCUT_Internet_Auto_Login.Worker</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Disable CET (Hardware Shadow Stacks) compatibility flag in the PE header.
+         Without this, .NET 9 asserts !AreShadowStacksEnabled() || UseSpecialUserModeApc()
+         and crashes on Windows 10 with CET-capable CPUs that lack Special User-Mode APC
+         support (UseSpecialUserModeApc returns false). -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
 
   <ItemGroup>

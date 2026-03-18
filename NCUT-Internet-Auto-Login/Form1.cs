@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.ServiceProcess;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -15,6 +16,12 @@ namespace NCUT_Internet_Auto_Login
         private const string LegacyAppName = "NCUT_Internet_Auto_Login";
         private const string RegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const int ServiceOperationTimeoutSeconds = 15;
+        // Starting the self-contained Worker exe (native init, ReadyToRun code) can take longer
+        // than the SCM's default 30-second window on slower machines.  We allow up to
+        // 60 s in WaitForStatus, and give sc.exe itself 45 s to avoid a process timeout
+        // before the SCM has even had a chance to return 1053.
+        private const int ServiceStartTimeoutSeconds = 60;
+        private const int ScStartProcessTimeoutMs   = 45 * 1000;
 
         private AppSettings settings;
         private System.Windows.Forms.Timer serviceStatusTimer;
@@ -183,6 +190,9 @@ namespace NCUT_Internet_Auto_Login
                 LogMessage($"{Program.GetTimestamp()} 程式以後台模式啟動\n");
 
             UpdateServiceStatusUI();
+
+            // 背景檢查更新（不阻塞 UI）
+            CheckForUpdatesBackground();
         }
 
         private void Form1_Resize(object sender, EventArgs e)
@@ -225,6 +235,7 @@ namespace NCUT_Internet_Auto_Login
         {
             SaveSettings();
 
+            // Worker is published as a self-contained exe — no dotnet.exe dependency.
             string workerExePath = Path.Combine(Application.StartupPath, "NCUT-Internet-Auto-Login.Worker.exe");
             if (!File.Exists(workerExePath))
             {
@@ -236,10 +247,11 @@ namespace NCUT_Internet_Auto_Login
 
             try
             {
-                RunElevated("sc.exe",
-                    $"create \"{ServiceName}\" binPath= \"{workerExePath}\" start= auto DisplayName= \"{ServiceName}\"");
-                RunElevated("sc.exe",
-                    $"description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"");
+                // Combine both sc.exe calls into one elevated cmd.exe invocation (single UAC prompt).
+                // Worker is self-contained: binPath= points directly to Worker.exe.
+                string createCmd = $"sc.exe create \"{ServiceName}\" binPath= \"{workerExePath}\" start= auto DisplayName= \"{ServiceName}\"";
+                string descCmd   = $"sc.exe description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"";
+                RunElevated("cmd.exe", $"/c {createCmd} && {descCmd}");
 
                 LogMessage($"{Program.GetTimestamp()} 服務安裝成功，已設定為開機自動啟動");
 
@@ -266,29 +278,12 @@ namespace NCUT_Internet_Auto_Login
 
             try
             {
-                // 先停止服務
-                try
-                {
-                    using (var sc = new ServiceController(ServiceName))
-                    {
-                        if (sc.Status == ServiceControllerStatus.Running)
-                        {
-                            sc.Stop();
-                            sc.WaitForStatus(ServiceControllerStatus.Stopped,
-                                TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        }
-                    }
-                }
-                catch (InvalidOperationException ex)
-                {
-                    LogMessage($"{Program.GetTimestamp()} 停止服務時發生錯誤（繼續解除安裝）: {ex.Message}");
-                }
-                catch (System.TimeoutException)
-                {
-                    LogMessage($"{Program.GetTimestamp()} 停止服務逾時（繼續解除安裝）");
-                }
-
-                RunElevated("sc.exe", $"delete \"{ServiceName}\"");
+                // Stop then delete in one elevated cmd.exe call (single UAC prompt).
+                // Use & (not &&) so delete runs even when the service was already stopped.
+                string stopCmd   = $"sc.exe stop \"{ServiceName}\"";
+                string waitCmd   = "timeout /t 5 /nobreak > nul";
+                string deleteCmd = $"sc.exe delete \"{ServiceName}\"";
+                RunElevated("cmd.exe", $"/c {stopCmd} & {waitCmd} & {deleteCmd}", timeoutMs: 30000);
 
                 LogMessage($"{Program.GetTimestamp()} 服務已解除安裝");
 
@@ -325,16 +320,42 @@ namespace NCUT_Internet_Auto_Login
             SaveSettings();
             try
             {
+                if (!IsServiceInstalled())
+                {
+                    string msg = "服務尚未安裝，請先點擊「安裝服務」。";
+                    LogMessage($"{Program.GetTimestamp()} {msg}");
+                    MessageBox.Show(msg, "服務未安裝", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 using (var sc = new ServiceController(ServiceName))
                 {
-                    if (sc.Status == ServiceControllerStatus.Stopped)
-                    {
-                        sc.Start();
-                        sc.WaitForStatus(ServiceControllerStatus.Running,
-                            TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        LogMessage($"{Program.GetTimestamp()} 服務已啟動");
-                    }
+                    if (sc.Status != ServiceControllerStatus.Stopped)
+                        return;
                 }
+
+                // sc.exe start requires admin rights; use an elevated process (UAC prompt).
+                // Exit code 1053 = ERROR_SERVICE_REQUEST_TIMEOUT: the Windows SCM did not
+                // receive SERVICE_RUNNING within its 30-second deadline, but the .NET worker
+                // process is likely still loading (JIT warm-up, etc.).  Tolerate this code
+                // and rely on WaitForStatus below to confirm the eventual running state.
+                RunElevated("sc.exe", $"start \"{ServiceName}\"",
+                    timeoutMs: ScStartProcessTimeoutMs,
+                    toleratedExitCodes: new[] { 1053 });
+
+                LogMessage($"{Program.GetTimestamp()} 等待服務啟動中...");
+
+                // Allow up to 60 s for the .NET worker to finish loading and reach Running.
+                using (var sc = new ServiceController(ServiceName))
+                {
+                    sc.WaitForStatus(ServiceControllerStatus.Running,
+                        TimeSpan.FromSeconds(ServiceStartTimeoutSeconds));
+                }
+
+                LogMessage($"{Program.GetTimestamp()} 服務已啟動");
+                this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
+                this.notifyIcon.BalloonTipText = "登入服務已啟動";
+                this.notifyIcon.ShowBalloonTip(2000);
             }
             catch (System.TimeoutException)
             {
@@ -349,25 +370,36 @@ namespace NCUT_Internet_Auto_Login
             }
 
             UpdateServiceStatusUI();
-            this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
-            this.notifyIcon.BalloonTipText = "登入服務已啟動";
-            this.notifyIcon.ShowBalloonTip(2000);
         }
 
         private void StopService()
         {
             try
             {
+                if (!IsServiceInstalled())
+                    return;
+
                 using (var sc = new ServiceController(ServiceName))
                 {
-                    if (sc.Status == ServiceControllerStatus.Running)
-                    {
-                        sc.Stop();
-                        sc.WaitForStatus(ServiceControllerStatus.Stopped,
-                            TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        LogMessage($"{Program.GetTimestamp()} 服務已停止");
-                    }
+                    if (sc.Status != ServiceControllerStatus.Running)
+                        return;
                 }
+
+                // sc.exe stop requires admin rights; use an elevated process (UAC prompt).
+                RunElevated("sc.exe", $"stop \"{ServiceName}\"",
+                    timeoutMs: (ServiceOperationTimeoutSeconds + 10) * 1000);
+
+                // Wait for the service to fully reach Stopped state.
+                using (var sc = new ServiceController(ServiceName))
+                {
+                    sc.WaitForStatus(ServiceControllerStatus.Stopped,
+                        TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
+                }
+
+                LogMessage($"{Program.GetTimestamp()} 服務已停止");
+                this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
+                this.notifyIcon.BalloonTipText = "登入服務已停止";
+                this.notifyIcon.ShowBalloonTip(2000);
             }
             catch (System.TimeoutException)
             {
@@ -382,9 +414,6 @@ namespace NCUT_Internet_Auto_Login
             }
 
             UpdateServiceStatusUI();
-            this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
-            this.notifyIcon.BalloonTipText = "登入服務已停止";
-            this.notifyIcon.ShowBalloonTip(2000);
         }
 
         // ──────────────────────────────────────────────────────
@@ -585,9 +614,10 @@ namespace NCUT_Internet_Auto_Login
         }
 
         /// <summary>
-        /// 以管理員身份執行命令（觸發 UAC 提示），若程序無法啟動或在逾時內未完成則拋出例外
+        /// 以管理員身份執行命令（觸發 UAC 提示），若程序無法啟動或在逾時內未完成則拋出例外。
+        /// <paramref name="toleratedExitCodes"/> 中列出的非零結束代碼視為可接受（不拋出例外）。
         /// </summary>
-        private static void RunElevated(string fileName, string arguments)
+        private static void RunElevated(string fileName, string arguments, int timeoutMs = 10000, int[] toleratedExitCodes = null)
         {
             var psi = new ProcessStartInfo
             {
@@ -604,12 +634,99 @@ namespace NCUT_Internet_Auto_Login
                 if (proc == null)
                     throw new InvalidOperationException($"無法啟動程序: {fileName}");
 
-                if (!proc.WaitForExit(10000))
-                    throw new System.TimeoutException($"程序執行逾時 (10 秒): {fileName} {arguments}");
+                if (!proc.WaitForExit(timeoutMs))
+                    throw new System.TimeoutException(
+                        $"程序執行逾時 ({timeoutMs / 1000} 秒): {fileName} {arguments}");
 
                 if (proc.ExitCode != 0)
-                    throw new InvalidOperationException(
-                        $"命令執行失敗 (結束代碼 {proc.ExitCode}): {fileName} {arguments}");
+                {
+                    bool isTolerated = toleratedExitCodes != null &&
+                                       Array.IndexOf(toleratedExitCodes, proc.ExitCode) >= 0;
+                    if (!isTolerated)
+                        throw new InvalidOperationException(
+                            $"命令執行失敗 (結束代碼 {proc.ExitCode}): {fileName} {arguments}");
+                }
+            }
+        }
+
+        // ──────────────────────────────────────────────────────
+        // OTA 更新
+        // ──────────────────────────────────────────────────────
+
+        private async void CheckForUpdatesBackground()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (!info.IsUpdateAvailable) return;
+
+                if (this.InvokeRequired)
+                    this.Invoke(new Action(() => PromptForUpdate(info)));
+                else
+                    PromptForUpdate(info);
+            }
+            catch { /* 更新檢查失敗時靜默忽略 */ }
+        }
+
+        private void checkForUpdatesMenuItem_Click(object sender, EventArgs e)
+        {
+            LogMessage($"{Program.GetTimestamp()} 正在檢查更新...");
+            CheckForUpdatesManual();
+        }
+
+        private async void CheckForUpdatesManual()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info.IsUpdateAvailable)
+                {
+                    PromptForUpdate(info);
+                }
+                else
+                {
+                    string current = $"v{UpdateChecker.CurrentVersion.ToString(3)}";
+                    LogMessage($"{Program.GetTimestamp()} 目前已是最新版本 ({current})");
+                    MessageBox.Show(
+                        $"目前已是最新版本 ({current})",
+                        "檢查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"{Program.GetTimestamp()} 檢查更新失敗: {ex.Message}");
+                MessageBox.Show($"檢查更新失敗:\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void PromptForUpdate(UpdateInfo info)
+        {
+            string msg = $"發現新版本 {info.TagName}！\n\n是否要下載並安裝更新？";
+            if (MessageBox.Show(msg, "有可用更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                DownloadAndInstallUpdate(info);
+        }
+
+        private async void DownloadAndInstallUpdate(UpdateInfo info)
+        {
+            if (string.IsNullOrEmpty(info.DownloadUrl))
+            {
+                Process.Start(UpdateChecker.ReleasesUrl);
+                return;
+            }
+
+            LogMessage($"{Program.GetTimestamp()} 正在下載更新 {info.TagName}...");
+            try
+            {
+                await UpdateChecker.DownloadAndInstallAsync(info.DownloadUrl);
+                LogMessage($"{Program.GetTimestamp()} 安裝程式已啟動，請依照提示完成安裝");
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"{Program.GetTimestamp()} 下載更新失敗: {ex.Message}");
+                MessageBox.Show(
+                    $"下載更新失敗:\n{ex.Message}\n\n請手動前往 GitHub 下載。",
+                    "下載失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Process.Start(UpdateChecker.ReleasesUrl);
             }
         }
 
