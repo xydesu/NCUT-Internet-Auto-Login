@@ -27,6 +27,8 @@ namespace NCUT_Internet_Auto_Login
             this.startMonitoringToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.stopMonitoringToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
+            this.checkForUpdatesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             
             this.lblTitle = new System.Windows.Forms.Label();
@@ -66,9 +68,11 @@ namespace NCUT_Internet_Auto_Login
             this.startMonitoringToolStripMenuItem,
             this.stopMonitoringToolStripMenuItem,
             this.toolStripSeparator2,
+            this.checkForUpdatesMenuItem,
+            this.toolStripSeparator3,
             this.exitToolStripMenuItem});
             this.contextMenuStrip.Name = "contextMenuStrip";
-            this.contextMenuStrip.Size = new System.Drawing.Size(125, 126);
+            this.contextMenuStrip.Size = new System.Drawing.Size(125, 148);
             
             // Context Menu Items
             this.showToolStripMenuItem.Text = "顯示視窗";
@@ -81,6 +85,10 @@ namespace NCUT_Internet_Auto_Login
             this.stopMonitoringToolStripMenuItem.Click += new System.EventHandler(this.stopMonitoringToolStripMenuItem_Click);
             this.exitToolStripMenuItem.Text = "結束程式";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
+            
+            // checkForUpdatesMenuItem
+            this.checkForUpdatesMenuItem.Text = "檢查更新";
+            this.checkForUpdatesMenuItem.Click += new System.EventHandler(this.checkForUpdatesMenuItem_Click);
             
             // lblTitle
             this.lblTitle.AutoSize = true;
@@ -169,14 +177,14 @@ namespace NCUT_Internet_Auto_Login
             // btnInstallService
             this.btnInstallService.BackColor = System.Drawing.Color.FromArgb(75, 85, 99);
             this.btnInstallService.CornerRadius = 8;
-            this.btnInstallService.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.btnInstallService.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnInstallService.ForeColor = System.Drawing.Color.White;
             this.btnInstallService.HoverColor = System.Drawing.Color.FromArgb(107, 114, 128);
             this.btnInstallService.Location = new System.Drawing.Point(24, 355);
             this.btnInstallService.Name = "btnInstallService";
             this.btnInstallService.NormalColor = System.Drawing.Color.FromArgb(75, 85, 99);
             this.btnInstallService.PressedColor = System.Drawing.Color.FromArgb(55, 65, 81);
-            this.btnInstallService.Size = new System.Drawing.Size(340, 40);
+            this.btnInstallService.Size = new System.Drawing.Size(340, 48);
             this.btnInstallService.Text = "安裝服務";
             this.btnInstallService.Click += new System.EventHandler(this.btnInstallService_Click);
 
@@ -186,7 +194,7 @@ namespace NCUT_Internet_Auto_Login
             this.btnStart.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnStart.ForeColor = System.Drawing.Color.White;
             this.btnStart.HoverColor = System.Drawing.Color.FromArgb(96, 165, 250);
-            this.btnStart.Location = new System.Drawing.Point(24, 408);
+            this.btnStart.Location = new System.Drawing.Point(24, 416);
             this.btnStart.Name = "btnStart";
             this.btnStart.NormalColor = System.Drawing.Color.FromArgb(59, 130, 246);
             this.btnStart.PressedColor = System.Drawing.Color.FromArgb(37, 99, 235);
@@ -201,7 +209,7 @@ namespace NCUT_Internet_Auto_Login
             this.btnStop.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnStop.ForeColor = System.Drawing.Color.White;
             this.btnStop.HoverColor = System.Drawing.Color.FromArgb(248, 113, 113);
-            this.btnStop.Location = new System.Drawing.Point(24, 468);
+            this.btnStop.Location = new System.Drawing.Point(24, 476);
             this.btnStop.Name = "btnStop";
             this.btnStop.NormalColor = System.Drawing.Color.FromArgb(239, 68, 68);
             this.btnStop.PressedColor = System.Drawing.Color.FromArgb(220, 38, 38);
@@ -213,7 +221,7 @@ namespace NCUT_Internet_Auto_Login
             this.lblLogTitle.AutoSize = true;
             this.lblLogTitle.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.lblLogTitle.ForeColor = System.Drawing.Color.Gray;
-            this.lblLogTitle.Location = new System.Drawing.Point(24, 534);
+            this.lblLogTitle.Location = new System.Drawing.Point(24, 542);
             this.lblLogTitle.Name = "lblLogTitle";
             this.lblLogTitle.Size = new System.Drawing.Size(55, 15);
             this.lblLogTitle.Text = "系統狀態";
@@ -222,7 +230,7 @@ namespace NCUT_Internet_Auto_Login
             this.txtLog.BackColor = System.Drawing.Color.FromArgb(21, 21, 21);
             this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.txtLog.ForeColor = System.Drawing.Color.LightGreen;
-            this.txtLog.Location = new System.Drawing.Point(24, 554);
+            this.txtLog.Location = new System.Drawing.Point(24, 562);
             this.txtLog.Multiline = true;
             this.txtLog.Name = "txtLog";
             this.txtLog.ReadOnly = true;
@@ -232,7 +240,7 @@ namespace NCUT_Internet_Auto_Login
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
-            this.ClientSize = new System.Drawing.Size(400, 690);
+            this.ClientSize = new System.Drawing.Size(400, 698);
             this.Controls.Add(this.txtLog);
             this.Controls.Add(this.lblLogTitle);
             this.Controls.Add(this.btnStop);
@@ -284,6 +292,8 @@ namespace NCUT_Internet_Auto_Login
         private System.Windows.Forms.ToolStripMenuItem startMonitoringToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem stopMonitoringToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
+        private System.Windows.Forms.ToolStripMenuItem checkForUpdatesMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator3;
         private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
     }
 }

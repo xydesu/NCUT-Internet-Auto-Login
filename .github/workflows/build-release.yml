@@ -45,30 +45,46 @@ jobs:
           msbuild NCUT-Internet-Auto-Login\NCUT-Internet-Auto-Login.csproj `
             /p:Configuration=Release `
             /p:Platform="Any CPU" `
-            /p:OutputPath=..\publish\gui\ `
+            /p:OutputPath=..\publish\ `
             /t:Rebuild `
             /v:minimal `
             /nologo
 
-      - name: Publish Worker project (Release)
+      - name: Publish Worker project (Release, DLL only)
         run: |
           dotnet publish NCUT-Internet-Auto-Login.Worker\NCUT-Internet-Auto-Login.Worker.csproj `
             -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:PublishReadyToRun=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -o publish\worker
+            --no-self-contained `
+            -o publish
 
-      # 讓你在 Actions 裡能下載 build 產物
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Resolve version for installer
+        id: version
+        run: |
+          # Extract version from tag (strip leading 'v').
+          # Falls back to "1.0.0" which must match the default in installer/setup.iss.
+          $tag = if ("${{ github.ref_name }}" -match "^v") { "${{ github.ref_name }}" } `
+                 elseif ("${{ github.event.inputs.tag }}" -match "^v") { "${{ github.event.inputs.tag }}" } `
+                 else { "v1.0.0" }
+          $version = $tag.TrimStart('v')
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Compile Inno Setup installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/dMyAppVersion=${{ steps.version.outputs.VERSION }}" `
+            "installer\setup.iss"
+
+      # Upload all publish files + installer as a single artifact
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-output
           path: |
-            publish/gui/NCUT-Internet-Auto-Login.exe
-            publish/worker/NCUT-Internet-Auto-Login.Worker.exe
+            publish/
+            installer/dist/
           if-no-files-found: error
 
   release:
@@ -92,7 +108,5 @@ jobs:
         with:
           # workflow_dispatch 必須指定 tag_name；push tag 則可省略（但寫上也沒問題）
           tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
-          files: |
-            dist/NCUT-Internet-Auto-Login.exe
-            dist/NCUT-Internet-Auto-Login.Worker.exe
+          files: dist/**
           generate_release_notes: true

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.ServiceProcess;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -183,6 +184,9 @@ namespace NCUT_Internet_Auto_Login
                 LogMessage($"{Program.GetTimestamp()} 程式以後台模式啟動\n");
 
             UpdateServiceStatusUI();
+
+            // 背景檢查更新（不阻塞 UI）
+            CheckForUpdatesBackground();
         }
 
         private void Form1_Resize(object sender, EventArgs e)
@@ -225,21 +229,33 @@ namespace NCUT_Internet_Auto_Login
         {
             SaveSettings();
 
-            string workerExePath = Path.Combine(Application.StartupPath, "NCUT-Internet-Auto-Login.Worker.exe");
-            if (!File.Exists(workerExePath))
+            string workerDllPath = Path.Combine(Application.StartupPath, "NCUT-Internet-Auto-Login.Worker.dll");
+            if (!File.Exists(workerDllPath))
             {
                 MessageBox.Show(
-                    $"找不到 Worker 執行檔:\n{workerExePath}\n\n請確認 NCUT-Internet-Auto-Login.Worker.exe 與本程式位於同一目錄。",
+                    $"找不到 Worker 執行檔:\n{workerDllPath}\n\n請確認 NCUT-Internet-Auto-Login.Worker.dll 與本程式位於同一目錄。",
+                    "安裝失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string dotnetPath = GetDotnetExePath();
+            if (dotnetPath == null)
+            {
+                MessageBox.Show(
+                    "找不到 .NET Runtime (dotnet.exe)。\n\n" +
+                    "請先安裝 .NET 9 Runtime：\nhttps://dotnet.microsoft.com/download/dotnet/9.0",
                     "安裝失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             try
             {
-                RunElevated("sc.exe",
-                    $"create \"{ServiceName}\" binPath= \"{workerExePath}\" start= auto DisplayName= \"{ServiceName}\"");
-                RunElevated("sc.exe",
-                    $"description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"");
+                // Combine both sc.exe calls into one elevated cmd.exe invocation (single UAC prompt).
+                // binPath= value: "dotnet.exe" "worker.dll"  (inner quotes escaped as \")
+                string binPath = $"\\\"{dotnetPath}\\\" \\\"{workerDllPath}\\\"";
+                string createCmd = $"sc.exe create \"{ServiceName}\" binPath= \"{binPath}\" start= auto DisplayName= \"{ServiceName}\"";
+                string descCmd   = $"sc.exe description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"";
+                RunElevated("cmd.exe", $"/c {createCmd} && {descCmd}");
 
                 LogMessage($"{Program.GetTimestamp()} 服務安裝成功，已設定為開機自動啟動");
 
@@ -266,29 +282,12 @@ namespace NCUT_Internet_Auto_Login
 
             try
             {
-                // 先停止服務
-                try
-                {
-                    using (var sc = new ServiceController(ServiceName))
-                    {
-                        if (sc.Status == ServiceControllerStatus.Running)
-                        {
-                            sc.Stop();
-                            sc.WaitForStatus(ServiceControllerStatus.Stopped,
-                                TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        }
-                    }
-                }
-                catch (InvalidOperationException ex)
-                {
-                    LogMessage($"{Program.GetTimestamp()} 停止服務時發生錯誤（繼續解除安裝）: {ex.Message}");
-                }
-                catch (System.TimeoutException)
-                {
-                    LogMessage($"{Program.GetTimestamp()} 停止服務逾時（繼續解除安裝）");
-                }
-
-                RunElevated("sc.exe", $"delete \"{ServiceName}\"");
+                // Stop then delete in one elevated cmd.exe call (single UAC prompt).
+                // Use & (not &&) so delete runs even when the service was already stopped.
+                string stopCmd   = $"sc.exe stop \"{ServiceName}\"";
+                string waitCmd   = "timeout /t 5 /nobreak > nul";
+                string deleteCmd = $"sc.exe delete \"{ServiceName}\"";
+                RunElevated("cmd.exe", $"/c {stopCmd} & {waitCmd} & {deleteCmd}", timeoutMs: 30000);
 
                 LogMessage($"{Program.GetTimestamp()} 服務已解除安裝");
 
@@ -304,6 +303,35 @@ namespace NCUT_Internet_Auto_Login
                 LogMessage($"{Program.GetTimestamp()} 解除安裝服務失敗: {ex.Message}");
                 MessageBox.Show($"解除安裝服務失敗:\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        /// <summary>
+        /// Searches common locations and PATH for dotnet.exe.
+        /// Returns null if not found.
+        /// </summary>
+        private static string GetDotnetExePath()
+        {
+            // Check the standard 64-bit and 32-bit Program Files paths first
+            string pf64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string pf32 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            foreach (string dir in new[] { pf64, pf32 })
+            {
+                string candidate = Path.Combine(dir, "dotnet", "dotnet.exe");
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            // Fall back to PATH
+            string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            foreach (string dir in pathEnv.Split(';'))
+            {
+                if (string.IsNullOrWhiteSpace(dir)) continue;
+                string candidate = Path.Combine(dir.Trim(), "dotnet.exe");
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            return null;
         }
 
         // ──────────────────────────────────────────────────────
@@ -587,7 +615,7 @@ namespace NCUT_Internet_Auto_Login
         /// <summary>
         /// 以管理員身份執行命令（觸發 UAC 提示），若程序無法啟動或在逾時內未完成則拋出例外
         /// </summary>
-        private static void RunElevated(string fileName, string arguments)
+        private static void RunElevated(string fileName, string arguments, int timeoutMs = 10000)
         {
             var psi = new ProcessStartInfo
             {
@@ -604,12 +632,94 @@ namespace NCUT_Internet_Auto_Login
                 if (proc == null)
                     throw new InvalidOperationException($"無法啟動程序: {fileName}");
 
-                if (!proc.WaitForExit(10000))
-                    throw new System.TimeoutException($"程序執行逾時 (10 秒): {fileName} {arguments}");
+                if (!proc.WaitForExit(timeoutMs))
+                    throw new System.TimeoutException(
+                        $"程序執行逾時 ({timeoutMs / 1000} 秒): {fileName} {arguments}");
 
                 if (proc.ExitCode != 0)
                     throw new InvalidOperationException(
                         $"命令執行失敗 (結束代碼 {proc.ExitCode}): {fileName} {arguments}");
+            }
+        }
+
+        // ──────────────────────────────────────────────────────
+        // OTA 更新
+        // ──────────────────────────────────────────────────────
+
+        private async void CheckForUpdatesBackground()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (!info.IsUpdateAvailable) return;
+
+                if (this.InvokeRequired)
+                    this.Invoke(new Action(() => PromptForUpdate(info)));
+                else
+                    PromptForUpdate(info);
+            }
+            catch { /* 更新檢查失敗時靜默忽略 */ }
+        }
+
+        private void checkForUpdatesMenuItem_Click(object sender, EventArgs e)
+        {
+            LogMessage($"{Program.GetTimestamp()} 正在檢查更新...");
+            CheckForUpdatesManual();
+        }
+
+        private async void CheckForUpdatesManual()
+        {
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info.IsUpdateAvailable)
+                {
+                    PromptForUpdate(info);
+                }
+                else
+                {
+                    string current = $"v{UpdateChecker.CurrentVersion.ToString(3)}";
+                    LogMessage($"{Program.GetTimestamp()} 目前已是最新版本 ({current})");
+                    MessageBox.Show(
+                        $"目前已是最新版本 ({current})",
+                        "檢查更新", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"{Program.GetTimestamp()} 檢查更新失敗: {ex.Message}");
+                MessageBox.Show($"檢查更新失敗:\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void PromptForUpdate(UpdateInfo info)
+        {
+            string msg = $"發現新版本 {info.TagName}！\n\n是否要下載並安裝更新？";
+            if (MessageBox.Show(msg, "有可用更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                DownloadAndInstallUpdate(info);
+        }
+
+        private async void DownloadAndInstallUpdate(UpdateInfo info)
+        {
+            if (string.IsNullOrEmpty(info.DownloadUrl))
+            {
+                Process.Start(UpdateChecker.ReleasesUrl);
+                return;
+            }
+
+            LogMessage($"{Program.GetTimestamp()} 正在下載更新 {info.TagName}...");
+            try
+            {
+                await UpdateChecker.DownloadAndInstallAsync(info.DownloadUrl);
+                LogMessage($"{Program.GetTimestamp()} 安裝程式已啟動，請依照提示完成安裝");
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"{Program.GetTimestamp()} 下載更新失敗: {ex.Message}");
+                MessageBox.Show(
+                    $"下載更新失敗:\n{ex.Message}\n\n請手動前往 GitHub 下載。",
+                    "下載失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Process.Start(UpdateChecker.ReleasesUrl);
             }
         }
 
