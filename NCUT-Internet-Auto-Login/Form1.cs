@@ -258,7 +258,7 @@ namespace NCUT_Internet_Auto_Login
             {
                 // Combine both sc.exe calls into one elevated cmd.exe invocation (single UAC prompt).
                 // binPath= value: "dotnet.exe" "worker.dll"  (inner quotes escaped as \")
-                string binPath = $"\\\"{dotnetPath}\\\" \\\"{workerDllPath}\\\"";
+                string binPath = $"\"{dotnetPath}\" \"{workerDllPath}\"";
                 string createCmd = $"sc.exe create \"{ServiceName}\" binPath= \"{binPath}\" start= auto DisplayName= \"{ServiceName}\"";
                 string descCmd   = $"sc.exe description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"";
                 RunElevated("cmd.exe", $"/c {createCmd} && {descCmd}");
