@@ -353,16 +353,35 @@ namespace NCUT_Internet_Auto_Login
             SaveSettings();
             try
             {
+                if (!IsServiceInstalled())
+                {
+                    string msg = "服務尚未安裝，請先點擊「安裝服務」。";
+                    LogMessage($"{Program.GetTimestamp()} {msg}");
+                    MessageBox.Show(msg, "服務未安裝", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 using (var sc = new ServiceController(ServiceName))
                 {
-                    if (sc.Status == ServiceControllerStatus.Stopped)
-                    {
-                        sc.Start();
-                        sc.WaitForStatus(ServiceControllerStatus.Running,
-                            TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        LogMessage($"{Program.GetTimestamp()} 服務已啟動");
-                    }
+                    if (sc.Status != ServiceControllerStatus.Stopped)
+                        return;
                 }
+
+                // sc.exe start requires admin rights; use an elevated process (UAC prompt).
+                RunElevated("sc.exe", $"start \"{ServiceName}\"",
+                    timeoutMs: (ServiceOperationTimeoutSeconds + 10) * 1000);
+
+                // Wait for the service to fully reach Running state.
+                using (var sc = new ServiceController(ServiceName))
+                {
+                    sc.WaitForStatus(ServiceControllerStatus.Running,
+                        TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
+                }
+
+                LogMessage($"{Program.GetTimestamp()} 服務已啟動");
+                this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
+                this.notifyIcon.BalloonTipText = "登入服務已啟動";
+                this.notifyIcon.ShowBalloonTip(2000);
             }
             catch (System.TimeoutException)
             {
@@ -377,25 +396,36 @@ namespace NCUT_Internet_Auto_Login
             }
 
             UpdateServiceStatusUI();
-            this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
-            this.notifyIcon.BalloonTipText = "登入服務已啟動";
-            this.notifyIcon.ShowBalloonTip(2000);
         }
 
         private void StopService()
         {
             try
             {
+                if (!IsServiceInstalled())
+                    return;
+
                 using (var sc = new ServiceController(ServiceName))
                 {
-                    if (sc.Status == ServiceControllerStatus.Running)
-                    {
-                        sc.Stop();
-                        sc.WaitForStatus(ServiceControllerStatus.Stopped,
-                            TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
-                        LogMessage($"{Program.GetTimestamp()} 服務已停止");
-                    }
+                    if (sc.Status != ServiceControllerStatus.Running)
+                        return;
                 }
+
+                // sc.exe stop requires admin rights; use an elevated process (UAC prompt).
+                RunElevated("sc.exe", $"stop \"{ServiceName}\"",
+                    timeoutMs: (ServiceOperationTimeoutSeconds + 10) * 1000);
+
+                // Wait for the service to fully reach Stopped state.
+                using (var sc = new ServiceController(ServiceName))
+                {
+                    sc.WaitForStatus(ServiceControllerStatus.Stopped,
+                        TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
+                }
+
+                LogMessage($"{Program.GetTimestamp()} 服務已停止");
+                this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
+                this.notifyIcon.BalloonTipText = "登入服務已停止";
+                this.notifyIcon.ShowBalloonTip(2000);
             }
             catch (System.TimeoutException)
             {
@@ -410,9 +440,6 @@ namespace NCUT_Internet_Auto_Login
             }
 
             UpdateServiceStatusUI();
-            this.notifyIcon.BalloonTipTitle = "NCUT Auto Login";
-            this.notifyIcon.BalloonTipText = "登入服務已停止";
-            this.notifyIcon.ShowBalloonTip(2000);
         }
 
         // ──────────────────────────────────────────────────────
