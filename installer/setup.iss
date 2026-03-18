@@ -148,10 +148,14 @@ begin
       'Click No to continue installing without it.',
       mbConfirmation, MB_YESNO) = IDYES then
     begin
-      ShellExec('open',
+      if ShellExec('open',
         'https://dotnet.microsoft.com/download/dotnet/9.0',
-        '', '', SW_SHOW, ewNoWait, ErrorCode);
-      Result := False;   // abort setup; user should install .NET first
+        '', '', SW_SHOW, ewNoWait, ErrorCode) then
+        Result := False   // browser opened; abort setup so user can install .NET first
+      else
+        MsgBox('Failed to open the browser (error ' + IntToStr(ErrorCode) + ').' + #13#10 +
+               'Please visit https://dotnet.microsoft.com/download/dotnet/9.0 manually.',
+               mbError, MB_OK);
     end;
   end;
 end;
