@@ -50,11 +50,14 @@ jobs:
             /v:minimal `
             /nologo
 
-      - name: Publish Worker project (Release, DLL only)
+      - name: Publish Worker project (Release, self-contained exe)
         run: |
           dotnet publish NCUT-Internet-Auto-Login.Worker\NCUT-Internet-Auto-Login.Worker.csproj `
             -c Release `
-            --no-self-contained `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
             -o publish
 
       - name: Install Inno Setup

@@ -16,7 +16,7 @@ namespace NCUT_Internet_Auto_Login
         private const string LegacyAppName = "NCUT_Internet_Auto_Login";
         private const string RegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const int ServiceOperationTimeoutSeconds = 15;
-        // Starting the .NET worker service (dotnet.exe + JIT warm-up) can take longer
+        // Starting the self-contained Worker exe (native init, ReadyToRun code) can take longer
         // than the SCM's default 30-second window on slower machines.  We allow up to
         // 60 s in WaitForStatus, and give sc.exe itself 45 s to avoid a process timeout
         // before the SCM has even had a chance to return 1053.
@@ -235,21 +235,12 @@ namespace NCUT_Internet_Auto_Login
         {
             SaveSettings();
 
-            string workerDllPath = Path.Combine(Application.StartupPath, "NCUT-Internet-Auto-Login.Worker.dll");
-            if (!File.Exists(workerDllPath))
+            // Worker is published as a self-contained exe — no dotnet.exe dependency.
+            string workerExePath = Path.Combine(Application.StartupPath, "NCUT-Internet-Auto-Login.Worker.exe");
+            if (!File.Exists(workerExePath))
             {
                 MessageBox.Show(
-                    $"找不到 Worker 執行檔:\n{workerDllPath}\n\n請確認 NCUT-Internet-Auto-Login.Worker.dll 與本程式位於同一目錄。",
-                    "安裝失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            string dotnetPath = GetDotnetExePath();
-            if (dotnetPath == null)
-            {
-                MessageBox.Show(
-                    "找不到 .NET Runtime (dotnet.exe)。\n\n" +
-                    "請先安裝 .NET 9 Runtime：\nhttps://dotnet.microsoft.com/download/dotnet/9.0",
+                    $"找不到 Worker 執行檔:\n{workerExePath}\n\n請確認 NCUT-Internet-Auto-Login.Worker.exe 與本程式位於同一目錄。",
                     "安裝失敗", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -257,9 +248,8 @@ namespace NCUT_Internet_Auto_Login
             try
             {
                 // Combine both sc.exe calls into one elevated cmd.exe invocation (single UAC prompt).
-                // binPath= value: "dotnet.exe" "worker.dll"  (inner quotes escaped as \")
-                string binPath = $"\"{dotnetPath}\" \"{workerDllPath}\"";
-                string createCmd = $"sc.exe create \"{ServiceName}\" binPath= \"{binPath}\" start= auto DisplayName= \"{ServiceName}\"";
+                // Worker is self-contained: binPath= points directly to Worker.exe.
+                string createCmd = $"sc.exe create \"{ServiceName}\" binPath= \"{workerExePath}\" start= auto DisplayName= \"{ServiceName}\"";
                 string descCmd   = $"sc.exe description \"{ServiceName}\" \"NCUT 校園網路自動登入服務，開機自動啟動登入，無需使用者登入\"";
                 RunElevated("cmd.exe", $"/c {createCmd} && {descCmd}");
 
@@ -309,35 +299,6 @@ namespace NCUT_Internet_Auto_Login
                 LogMessage($"{Program.GetTimestamp()} 解除安裝服務失敗: {ex.Message}");
                 MessageBox.Show($"解除安裝服務失敗:\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        /// <summary>
-        /// Searches common locations and PATH for dotnet.exe.
-        /// Returns null if not found.
-        /// </summary>
-        private static string GetDotnetExePath()
-        {
-            // Check the standard 64-bit and 32-bit Program Files paths first
-            string pf64 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string pf32 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            foreach (string dir in new[] { pf64, pf32 })
-            {
-                string candidate = Path.Combine(dir, "dotnet", "dotnet.exe");
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-
-            // Fall back to PATH
-            string pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-            foreach (string dir in pathEnv.Split(';'))
-            {
-                if (string.IsNullOrWhiteSpace(dir)) continue;
-                string candidate = Path.Combine(dir.Trim(), "dotnet.exe");
-                if (File.Exists(candidate))
-                    return candidate;
-            }
-
-            return null;
         }
 
         // ──────────────────────────────────────────────────────

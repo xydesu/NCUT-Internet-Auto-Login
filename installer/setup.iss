@@ -37,7 +37,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-; All published files (GUI exe + Worker dll + dependencies)
+; All published files (GUI exe + Worker self-contained exe + dependencies)
 Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
 [Icons]
@@ -52,55 +52,21 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 const
   ServiceName = 'NCUT Auto Login Service';
 
-function GetDotnetExePath(): String;
-var
-  Path64, Path32: String;
-begin
-  Path64 := ExpandConstant('{pf64}\dotnet\dotnet.exe');
-  Path32 := ExpandConstant('{pf}\dotnet\dotnet.exe');
-  if FileExists(Path64) then
-    Result := Path64
-  else if FileExists(Path32) then
-    Result := Path32
-  else
-    Result := '';
-end;
-
-procedure RunSc(const Args: string);
-var
-  ResultCode: Integer;
-begin
-  if not Exec(ExpandConstant('{sys}\sc.exe'), Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    MsgBox('Failed to run sc.exe: ' + Args, mbError, MB_OK);
-end;
-
 procedure RegisterService();
 var
-  DotnetPath, DllPath, BinPath: String;
+  ExePath: String;
   ResultCode: Integer;
 begin
-  DotnetPath := GetDotnetExePath();
-  if DotnetPath = '' then
+  ExePath := ExpandConstant('{app}\NCUT-Internet-Auto-Login.Worker.exe');
+
+  if not FileExists(ExePath) then
   begin
-    MsgBox(
-      '.NET 9 Runtime not found. The background service will not be registered.' + #13#10 +
-      'Please install .NET 9 Runtime and re-run the installer.',
-      mbError, MB_OK);
+    MsgBox('Worker EXE not found: ' + ExePath, mbError, MB_OK);
     Exit;
   end;
-
-  DllPath := ExpandConstant('{app}\NCUT-Internet-Auto-Login.Worker.dll');
-
-  if not FileExists(DllPath) then
-  begin
-    MsgBox('Worker DLL not found: ' + DllPath, mbError, MB_OK);
-    Exit;
-  end;
-
-  BinPath := '\"' + DotnetPath + '\" \"' + DllPath + '\"';
 
   Exec(ExpandConstant('{sys}\sc.exe'),
-    'create "' + ServiceName + '" binPath= "' + BinPath + '" start= auto DisplayName= "' + ServiceName + '"',
+    'create "' + ServiceName + '" binPath= "' + ExePath + '" start= auto DisplayName= "' + ServiceName + '"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
   Exec(ExpandConstant('{sys}\sc.exe'),
@@ -134,28 +100,3 @@ begin
     StopAndRemoveService();
 end;
 
-function InitializeSetup(): Boolean;
-var
-  ErrorCode: Integer;
-begin
-  Result := True;
-  if GetDotnetExePath() = '' then
-  begin
-    if MsgBox(
-      '.NET 9 Runtime was not found on this machine.' + #13#10 +
-      'The background Worker service requires .NET 9 to run.' + #13#10 + #13#10 +
-      'Click Yes to open the .NET 9 download page, then re-run the installer.' + #13#10 +
-      'Click No to continue installing without it.',
-      mbConfirmation, MB_YESNO) = IDYES then
-    begin
-      if ShellExec('open',
-        'https://dotnet.microsoft.com/download/dotnet/9.0',
-        '', '', SW_SHOW, ewNoWait, ErrorCode) then
-        Result := False
-      else
-        MsgBox('Failed to open the browser (error ' + IntToStr(ErrorCode) + ').' + #13#10 +
-               'Please visit https://dotnet.microsoft.com/download/dotnet/9.0 manually.',
-               mbError, MB_OK);
-    end;
-  end;
-end;
