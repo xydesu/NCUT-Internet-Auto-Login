@@ -16,6 +16,12 @@ namespace NCUT_Internet_Auto_Login
         private const string LegacyAppName = "NCUT_Internet_Auto_Login";
         private const string RegistryKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
         private const int ServiceOperationTimeoutSeconds = 15;
+        // Starting the .NET worker service (dotnet.exe + JIT warm-up) can take longer
+        // than the SCM's default 30-second window on slower machines.  We allow up to
+        // 60 s in WaitForStatus, and give sc.exe itself 45 s to avoid a process timeout
+        // before the SCM has even had a chance to return 1053.
+        private const int ServiceStartTimeoutSeconds = 60;
+        private const int ScStartProcessTimeoutMs   = 45 * 1000;
 
         private AppSettings settings;
         private System.Windows.Forms.Timer serviceStatusTimer;
@@ -368,14 +374,21 @@ namespace NCUT_Internet_Auto_Login
                 }
 
                 // sc.exe start requires admin rights; use an elevated process (UAC prompt).
+                // Exit code 1053 = ERROR_SERVICE_REQUEST_TIMEOUT: the Windows SCM did not
+                // receive SERVICE_RUNNING within its 30-second deadline, but the .NET worker
+                // process is likely still loading (JIT warm-up, etc.).  Tolerate this code
+                // and rely on WaitForStatus below to confirm the eventual running state.
                 RunElevated("sc.exe", $"start \"{ServiceName}\"",
-                    timeoutMs: (ServiceOperationTimeoutSeconds + 10) * 1000);
+                    timeoutMs: ScStartProcessTimeoutMs,
+                    toleratedExitCodes: new[] { 1053 });
 
-                // Wait for the service to fully reach Running state.
+                LogMessage($"{Program.GetTimestamp()} 等待服務啟動中...");
+
+                // Allow up to 60 s for the .NET worker to finish loading and reach Running.
                 using (var sc = new ServiceController(ServiceName))
                 {
                     sc.WaitForStatus(ServiceControllerStatus.Running,
-                        TimeSpan.FromSeconds(ServiceOperationTimeoutSeconds));
+                        TimeSpan.FromSeconds(ServiceStartTimeoutSeconds));
                 }
 
                 LogMessage($"{Program.GetTimestamp()} 服務已啟動");
@@ -640,9 +653,10 @@ namespace NCUT_Internet_Auto_Login
         }
 
         /// <summary>
-        /// 以管理員身份執行命令（觸發 UAC 提示），若程序無法啟動或在逾時內未完成則拋出例外
+        /// 以管理員身份執行命令（觸發 UAC 提示），若程序無法啟動或在逾時內未完成則拋出例外。
+        /// <paramref name="toleratedExitCodes"/> 中列出的非零結束代碼視為可接受（不拋出例外）。
         /// </summary>
-        private static void RunElevated(string fileName, string arguments, int timeoutMs = 10000)
+        private static void RunElevated(string fileName, string arguments, int timeoutMs = 10000, int[] toleratedExitCodes = null)
         {
             var psi = new ProcessStartInfo
             {
@@ -664,8 +678,13 @@ namespace NCUT_Internet_Auto_Login
                         $"程序執行逾時 ({timeoutMs / 1000} 秒): {fileName} {arguments}");
 
                 if (proc.ExitCode != 0)
-                    throw new InvalidOperationException(
-                        $"命令執行失敗 (結束代碼 {proc.ExitCode}): {fileName} {arguments}");
+                {
+                    bool isTolerated = toleratedExitCodes != null &&
+                                       Array.IndexOf(toleratedExitCodes, proc.ExitCode) >= 0;
+                    if (!isTolerated)
+                        throw new InvalidOperationException(
+                            $"命令執行失敗 (結束代碼 {proc.ExitCode}): {fileName} {arguments}");
+                }
             }
         }
 
