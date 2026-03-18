@@ -103,12 +103,31 @@ jobs:
           name: build-output
           path: dist
 
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package release assets
+        run: |
+          tag="${{ steps.tag.outputs.TAG }}"
+          mkdir -p release
+          # Zip all portable publish files
+          (cd dist/publish && zip -r "../../release/NCUT-Internet-Auto-Login-portable-${tag}.zip" .)
+          # Copy installer with versioned filename
+          cp dist/installer/dist/NCUT-Internet-Auto-Login-Setup.exe \
+             "release/NCUT-Internet-Auto-Login-Setup-${tag}.exe"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           # workflow_dispatch 必須指定 tag_name；push tag 則可省略（但寫上也沒問題）
           tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || '' }}
-          files: dist/**
+          files: release/*
           generate_release_notes: true
 
       - name: Update 'latest' tag

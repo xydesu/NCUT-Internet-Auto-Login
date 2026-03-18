@@ -16,7 +16,7 @@ namespace NCUT_Internet_Auto_Login
         public const string ReleasesUrl =
             "https://github.com/xydesu/NCUT-Internet-Auto-Login/releases/latest";
 
-        private const string InstallerAssetName = "NCUT-Internet-Auto-Login-Setup.exe";
+        private const string InstallerAssetPrefix = "NCUT-Internet-Auto-Login-Setup-";
 
         // Reuse a single HttpClient instance to avoid socket exhaustion
         private static readonly HttpClient _http = new HttpClient
@@ -59,11 +59,11 @@ namespace NCUT_Internet_Auto_Login
                 // Find the installer asset's download URL
                 string downloadUrl = string.Empty;
 
-                // Look for the named installer asset first
+                // Look for the versioned installer asset (e.g. NCUT-Internet-Auto-Login-Setup-v1.2.3.exe)
                 var assetMatch = Regex.Match(
                     json,
-                    "\"name\"\\s*:\\s*\"" + Regex.Escape(InstallerAssetName) +
-                    "\".*?\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"",
+                    "\"name\"\\s*:\\s*\"" + Regex.Escape(InstallerAssetPrefix) +
+                    "[^\"]*\\.exe\".*?\"browser_download_url\"\\s*:\\s*\"([^\"]+)\"",
                     RegexOptions.Singleline);
 
                 if (assetMatch.Success)
@@ -96,7 +96,7 @@ namespace NCUT_Internet_Auto_Login
         {
             string tempPath = Path.Combine(
                 Path.GetTempPath(),
-                InstallerAssetName);
+                "NCUT-Internet-Auto-Login-Setup.exe");
 
             byte[] data = await _http.GetByteArrayAsync(downloadUrl).ConfigureAwait(false);
             File.WriteAllBytes(tempPath, data);
