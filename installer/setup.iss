@@ -10,7 +10,7 @@
 #define MyServiceName "NCUT Auto Login Service"
 
 [Setup]
-AppId={{F9CF5BF2-F88C-4A93-95D4-462B419838E0}
+AppId={{F9CF5BF2-F88C-4A93-95D4-462B419838E0}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=sangege & AI LIFE
@@ -50,11 +50,8 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}
 
 [Code]
 const
-  ServiceName = '{#MyServiceName}';
+  ServiceName = 'NCUT Auto Login Service';
 
-// ──────────────────────────────────────────────────
-// Find the full path to dotnet.exe
-// ──────────────────────────────────────────────────
 function GetDotnetExePath(): String;
 var
   Path64, Path32: String;
@@ -69,12 +66,17 @@ begin
     Result := '';
 end;
 
-// ──────────────────────────────────────────────────
-// Register the Worker as a Windows service
-// ──────────────────────────────────────────────────
+procedure RunSc(const Args: string);
+var
+  ResultCode: Integer;
+begin
+  if not Exec(ExpandConstant('{sys}\sc.exe'), Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    MsgBox('Failed to run sc.exe: ' + Args, mbError, MB_OK);
+end;
+
 procedure RegisterService();
 var
-  DotnetPath, DllPath, Args: String;
+  DotnetPath, DllPath, BinPath: String;
   ResultCode: Integer;
 begin
   DotnetPath := GetDotnetExePath();
@@ -89,23 +91,23 @@ begin
 
   DllPath := ExpandConstant('{app}\NCUT-Internet-Auto-Login.Worker.dll');
 
-  // sc.exe binPath= value is the full service command line:
-  //   "<dotnet.exe full path>" "<worker.dll full path>"
-  // The surrounding quotes inside binPath= are escaped as \" for sc.exe
-  Args := 'create "' + ServiceName + '" binPath= "\"' + DotnetPath +
-          '\" \"' + DllPath + '\"" start= auto DisplayName= "' + ServiceName + '"';
-  Exec(ExpandConstant('{sys}\sc.exe'), Args, '',
-    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if not FileExists(DllPath) then
+  begin
+    MsgBox('Worker DLL not found: ' + DllPath, mbError, MB_OK);
+    Exit;
+  end;
+
+  BinPath := '\"' + DotnetPath + '\" \"' + DllPath + '\"';
 
   Exec(ExpandConstant('{sys}\sc.exe'),
-    'description "' + ServiceName + '" ' +
-    '"NCUT campus network auto-login service"',
+    'create "' + ServiceName + '" binPath= "' + BinPath + '" start= auto DisplayName= "' + ServiceName + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  Exec(ExpandConstant('{sys}\sc.exe'),
+    'description "' + ServiceName + '" "NCUT campus network auto-login service"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
-// ──────────────────────────────────────────────────
-// Stop and remove the service (used on upgrade/uninstall)
-// ──────────────────────────────────────────────────
 procedure StopAndRemoveService();
 var
   ResultCode: Integer;
@@ -120,9 +122,10 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then
-    StopAndRemoveService();   // stop old service before overwriting files
+    StopAndRemoveService();
+
   if CurStep = ssPostInstall then
-    RegisterService();        // register the fresh service
+    RegisterService();
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -131,9 +134,6 @@ begin
     StopAndRemoveService();
 end;
 
-// ──────────────────────────────────────────────────
-// Warn the user if .NET 9 is not detected
-// ──────────────────────────────────────────────────
 function InitializeSetup(): Boolean;
 var
   ErrorCode: Integer;
@@ -151,7 +151,7 @@ begin
       if ShellExec('open',
         'https://dotnet.microsoft.com/download/dotnet/9.0',
         '', '', SW_SHOW, ewNoWait, ErrorCode) then
-        Result := False   // browser opened; abort setup so user can install .NET first
+        Result := False
       else
         MsgBox('Failed to open the browser (error ' + IntToStr(ErrorCode) + ').' + #13#10 +
                'Please visit https://dotnet.microsoft.com/download/dotnet/9.0 manually.',
