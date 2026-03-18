@@ -135,6 +135,8 @@ end;
 // Warn the user if .NET 9 is not detected
 // ──────────────────────────────────────────────────
 function InitializeSetup(): Boolean;
+var
+  ErrorCode: Integer;
 begin
   Result := True;
   if GetDotnetExePath() = '' then
@@ -148,7 +150,7 @@ begin
     begin
       ShellExec('open',
         'https://dotnet.microsoft.com/download/dotnet/9.0',
-        '', '', SW_SHOW, ewNoWait, 0);
+        '', '', SW_SHOW, ewNoWait, ErrorCode);
       Result := False;   // abort setup; user should install .NET first
     end;
   end;
