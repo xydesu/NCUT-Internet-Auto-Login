@@ -144,6 +144,8 @@ ISCC /dMyAppVersion=1.0.0 installer\setup.iss
 
 > <https://github.com/apple050620312/NCUT-Internet-Auto-Login>
 
+**Fork 目的**：將登入邏輯綁定至 Windows 服務，以獲得更快的開機啟動速度。
+
 感謝原作者的貢獻。
 
 ## 相關連結
