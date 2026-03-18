@@ -1,6 +1,6 @@
 # NCUT Internet Auto Login
 
-自動登入 NCUT（北京城市學院）校園網的 Windows 應用程式。
+自動登入 NCUT（[國立勤益科技大學](https://zh.wikipedia.org/zh-tw/%E5%9C%8B%E7%AB%8B%E5%8B%A4%E7%9B%8A%E7%A7%91%E6%8A%80%E5%A4%A7%E5%AD%B8)）校園網的 Windows 應用程式。
 
 ## 簡介
 
