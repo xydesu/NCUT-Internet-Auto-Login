@@ -72,7 +72,12 @@ namespace NCUT_Internet_Auto_Login
             }
 
             bool installed = IsServiceInstalled();
-            this.btnInstallService.Text = installed ? "解除安裝服務" : "安裝服務";
+            // Show the install button only when the service is not present; when
+            // installed, the low-key uninstall link at the bottom is used instead.
+            this.btnInstallService.Visible   = !installed;
+            this.lnkUninstallService.Visible = installed;
+            this.btnStop.Visible             = installed;
+            this.btnStart.Visible            = installed;
             this.chkAutoStart.Enabled = installed;
 
             if (!installed)
@@ -225,10 +230,7 @@ namespace NCUT_Internet_Auto_Login
 
         private void btnInstallService_Click(object sender, EventArgs e)
         {
-            if (IsServiceInstalled())
-                UninstallService();
-            else
-                InstallService();
+            InstallService();
         }
 
         private void InstallService()
@@ -299,6 +301,11 @@ namespace NCUT_Internet_Auto_Login
                 LogMessage($"{Program.GetTimestamp()} 解除安裝服務失敗: {ex.Message}");
                 MessageBox.Show($"解除安裝服務失敗:\n{ex.Message}", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void lnkUninstallService_LinkClicked(object sender, System.Windows.Forms.LinkLabelLinkClickedEventArgs e)
+        {
+            UninstallService();
         }
 
         // ──────────────────────────────────────────────────────
