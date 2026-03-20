@@ -129,7 +129,7 @@ dotnet publish NCUT-Internet-Auto-Login.Worker\NCUT-Internet-Auto-Login.Worker.c
 ### 安裝程式（Inno Setup）
 
 ```powershell
-ISCC /dMyAppVersion=1.0.0 installer\setup.iss
+ISCC /dMyAppVersion=1.1.1 installer\setup.iss
 # 輸出：installer\dist\NCUT-Internet-Auto-Login-Setup.exe
 ```
 

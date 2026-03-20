@@ -1,8 +1,8 @@
 ; NCUT Internet Auto Login - Inno Setup Script
-; Build: ISCC /dMyAppVersion=1.0.0 installer\setup.iss
+; Build: ISCC /dMyAppVersion=1.1.1 installer\setup.iss
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.1.1"
 #endif
 
 #define MyAppName    "NCUT Internet Auto Login"
