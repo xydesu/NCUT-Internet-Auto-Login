@@ -49,9 +49,12 @@ namespace NCUT_Internet_Auto_Login
             this.btnStop = new NCUT_Internet_Auto_Login.ModernUI.ModernButton();
             
             this.lblLogTitle = new System.Windows.Forms.Label();
+            this.pnlLog = new System.Windows.Forms.Panel();
             this.txtLog = new System.Windows.Forms.TextBox();
+            this.lnkUninstallService = new System.Windows.Forms.LinkLabel();
             
             this.contextMenuStrip.SuspendLayout();
+            this.pnlLog.SuspendLayout();
             this.SuspendLayout();
             
             // notifyIcon
@@ -148,18 +151,19 @@ namespace NCUT_Internet_Auto_Login
             this.txtPassword.UseSystemPasswordChar = true;
             
             // chkAutoStart — 控制 Windows 服務是否開機自動啟動
+            // Centering: content_width=340, total_checkboxes=110+20gap+122=252, offset=(340-252)/2=44 → X=24+44=68
             this.chkAutoStart.AutoSize = true;
             this.chkAutoStart.ForeColor = System.Drawing.Color.LightGray;
-            this.chkAutoStart.Location = new System.Drawing.Point(24, 298);
+            this.chkAutoStart.Location = new System.Drawing.Point(68, 295);
             this.chkAutoStart.Name = "chkAutoStart";
             this.chkAutoStart.Size = new System.Drawing.Size(110, 17);
             this.chkAutoStart.Text = "服務開機自動啟動";
             this.chkAutoStart.CheckedChanged += new System.EventHandler(this.chkAutoStart_CheckedChanged);
             
-            // chkStartMinimized — 控制 GUI 程式是否開機後台啟動
+            // chkStartMinimized — 控制 GUI 程式是否開機後台啟動 → X = 68+110+20 = 198
             this.chkStartMinimized.AutoSize = true;
             this.chkStartMinimized.ForeColor = System.Drawing.Color.LightGray;
-            this.chkStartMinimized.Location = new System.Drawing.Point(190, 298);
+            this.chkStartMinimized.Location = new System.Drawing.Point(198, 295);
             this.chkStartMinimized.Name = "chkStartMinimized";
             this.chkStartMinimized.Size = new System.Drawing.Size(122, 17);
             this.chkStartMinimized.Text = "程式開機後台啟動";
@@ -169,24 +173,44 @@ namespace NCUT_Internet_Auto_Login
             this.lblServiceStatus.AutoSize = true;
             this.lblServiceStatus.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.lblServiceStatus.ForeColor = System.Drawing.Color.Gray;
-            this.lblServiceStatus.Location = new System.Drawing.Point(24, 330);
+            this.lblServiceStatus.Location = new System.Drawing.Point(24, 328);
             this.lblServiceStatus.Name = "lblServiceStatus";
             this.lblServiceStatus.Size = new System.Drawing.Size(80, 15);
             this.lblServiceStatus.Text = "服務狀態：查詢中...";
 
-            // btnInstallService
-            this.btnInstallService.BackColor = System.Drawing.Color.FromArgb(75, 85, 99);
+            // btnInstallService — shown only when service is NOT installed.
+            // Initial Visible=false prevents a flash before Form1_Load calls UpdateServiceStatusUI().
+            this.btnInstallService.BackColor = System.Drawing.Color.FromArgb(59, 130, 246);
             this.btnInstallService.CornerRadius = 8;
             this.btnInstallService.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnInstallService.ForeColor = System.Drawing.Color.White;
-            this.btnInstallService.HoverColor = System.Drawing.Color.FromArgb(107, 114, 128);
-            this.btnInstallService.Location = new System.Drawing.Point(24, 355);
+            this.btnInstallService.HoverColor = System.Drawing.Color.FromArgb(96, 165, 250);
+            this.btnInstallService.Location = new System.Drawing.Point(24, 354);
             this.btnInstallService.Name = "btnInstallService";
-            this.btnInstallService.NormalColor = System.Drawing.Color.FromArgb(75, 85, 99);
-            this.btnInstallService.PressedColor = System.Drawing.Color.FromArgb(55, 65, 81);
-            this.btnInstallService.Size = new System.Drawing.Size(340, 48);
+            this.btnInstallService.NormalColor = System.Drawing.Color.FromArgb(59, 130, 246);
+            this.btnInstallService.PressedColor = System.Drawing.Color.FromArgb(37, 99, 235);
+            this.btnInstallService.Size = new System.Drawing.Size(340, 44);
             this.btnInstallService.Text = "安裝服務";
+            this.btnInstallService.Visible = false;
             this.btnInstallService.Click += new System.EventHandler(this.btnInstallService_Click);
+
+            // btnStop — outline red style; positioned above btnStart (primary action when running).
+            // Initial Visible=false: UpdateServiceStatusUI() in Form1_Load sets correct visibility.
+            this.btnStop.CornerRadius = 8;
+            this.btnStop.Enabled = false;
+            this.btnStop.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
+            this.btnStop.ForeColor = System.Drawing.Color.White;
+            this.btnStop.HoverColor = System.Drawing.Color.FromArgb(248, 113, 113);
+            this.btnStop.IsOutline = true;
+            this.btnStop.Location = new System.Drawing.Point(24, 354);
+            this.btnStop.Name = "btnStop";
+            this.btnStop.NormalColor = System.Drawing.Color.FromArgb(239, 68, 68);
+            this.btnStop.OutlineColor = System.Drawing.Color.FromArgb(239, 68, 68);
+            this.btnStop.PressedColor = System.Drawing.Color.FromArgb(220, 38, 38);
+            this.btnStop.Size = new System.Drawing.Size(340, 44);
+            this.btnStop.Text = "停止服務";
+            this.btnStop.Visible = false;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
 
             // btnStart
             this.btnStart.BackColor = System.Drawing.Color.FromArgb(59, 130, 246);
@@ -194,54 +218,61 @@ namespace NCUT_Internet_Auto_Login
             this.btnStart.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             this.btnStart.ForeColor = System.Drawing.Color.White;
             this.btnStart.HoverColor = System.Drawing.Color.FromArgb(96, 165, 250);
-            this.btnStart.Location = new System.Drawing.Point(24, 416);
+            this.btnStart.Location = new System.Drawing.Point(24, 410);
             this.btnStart.Name = "btnStart";
             this.btnStart.NormalColor = System.Drawing.Color.FromArgb(59, 130, 246);
             this.btnStart.PressedColor = System.Drawing.Color.FromArgb(37, 99, 235);
-            this.btnStart.Size = new System.Drawing.Size(340, 48);
+            this.btnStart.Size = new System.Drawing.Size(340, 44);
             this.btnStart.Text = "啟動服務";
+            this.btnStart.Visible = false;
             this.btnStart.Click += new System.EventHandler(this.btnStart_Click);
-            
-            // btnStop
-            this.btnStop.BackColor = System.Drawing.Color.FromArgb(239, 68, 68);
-            this.btnStop.CornerRadius = 8;
-            this.btnStop.Enabled = false;
-            this.btnStop.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
-            this.btnStop.ForeColor = System.Drawing.Color.White;
-            this.btnStop.HoverColor = System.Drawing.Color.FromArgb(248, 113, 113);
-            this.btnStop.Location = new System.Drawing.Point(24, 476);
-            this.btnStop.Name = "btnStop";
-            this.btnStop.NormalColor = System.Drawing.Color.FromArgb(239, 68, 68);
-            this.btnStop.PressedColor = System.Drawing.Color.FromArgb(220, 38, 38);
-            this.btnStop.Size = new System.Drawing.Size(340, 48);
-            this.btnStop.Text = "停止服務";
-            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
             
             // lblLogTitle
             this.lblLogTitle.AutoSize = true;
             this.lblLogTitle.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.lblLogTitle.ForeColor = System.Drawing.Color.Gray;
-            this.lblLogTitle.Location = new System.Drawing.Point(24, 542);
+            this.lblLogTitle.Location = new System.Drawing.Point(24, 472);
             this.lblLogTitle.Name = "lblLogTitle";
             this.lblLogTitle.Size = new System.Drawing.Size(55, 15);
             this.lblLogTitle.Text = "系統狀態";
             
-            // txtLog
+            // pnlLog — wrapper panel providing inner padding for the log text box
+            this.pnlLog.BackColor = System.Drawing.Color.FromArgb(21, 21, 21);
+            this.pnlLog.Location = new System.Drawing.Point(24, 492);
+            this.pnlLog.Name = "pnlLog";
+            this.pnlLog.Size = new System.Drawing.Size(340, 130);
+            this.pnlLog.Controls.Add(this.txtLog);
+
+            // txtLog — inside pnlLog; 10 px padding on all sides
             this.txtLog.BackColor = System.Drawing.Color.FromArgb(21, 21, 21);
             this.txtLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.txtLog.ForeColor = System.Drawing.Color.LightGreen;
-            this.txtLog.Location = new System.Drawing.Point(24, 562);
+            this.txtLog.Location = new System.Drawing.Point(10, 10);
             this.txtLog.Multiline = true;
             this.txtLog.Name = "txtLog";
             this.txtLog.ReadOnly = true;
-            this.txtLog.Size = new System.Drawing.Size(340, 110);
+            this.txtLog.Size = new System.Drawing.Size(320, 110);
+
+            // lnkUninstallService — low-key text link at the bottom; shown only when installed
+            this.lnkUninstallService.AutoSize = false;
+            this.lnkUninstallService.ActiveLinkColor = System.Drawing.Color.FromArgb(239, 68, 68);
+            this.lnkUninstallService.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.lnkUninstallService.LinkColor = System.Drawing.Color.FromArgb(130, 130, 130);
+            this.lnkUninstallService.Location = new System.Drawing.Point(24, 638);
+            this.lnkUninstallService.Name = "lnkUninstallService";
+            this.lnkUninstallService.Size = new System.Drawing.Size(340, 20);
+            this.lnkUninstallService.Text = "解除安裝服務";
+            this.lnkUninstallService.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.lnkUninstallService.Visible = false;
+            this.lnkUninstallService.LinkClicked += new System.Windows.Forms.LinkLabelLinkClickedEventHandler(this.lnkUninstallService_LinkClicked);
             
             // Form1
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
             this.BackColor = System.Drawing.Color.FromArgb(30, 30, 30);
-            this.ClientSize = new System.Drawing.Size(400, 698);
-            this.Controls.Add(this.txtLog);
+            this.ClientSize = new System.Drawing.Size(400, 676);
+            this.Controls.Add(this.lnkUninstallService);
+            this.Controls.Add(this.pnlLog);
             this.Controls.Add(this.lblLogTitle);
             this.Controls.Add(this.btnStop);
             this.Controls.Add(this.btnStart);
@@ -264,6 +295,8 @@ namespace NCUT_Internet_Auto_Login
             this.Load += new System.EventHandler(this.Form1_Load);
             this.Resize += new System.EventHandler(this.Form1_Resize);
             this.contextMenuStrip.ResumeLayout(false);
+            this.pnlLog.ResumeLayout(false);
+            this.pnlLog.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
         }
@@ -283,7 +316,9 @@ namespace NCUT_Internet_Auto_Login
         private NCUT_Internet_Auto_Login.ModernUI.ModernButton btnStart;
         private NCUT_Internet_Auto_Login.ModernUI.ModernButton btnStop;
         private System.Windows.Forms.Label lblLogTitle;
+        private System.Windows.Forms.Panel pnlLog;
         private System.Windows.Forms.TextBox txtLog;
+        private System.Windows.Forms.LinkLabel lnkUninstallService;
         private System.Windows.Forms.NotifyIcon notifyIcon;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip;
         private System.Windows.Forms.ToolStripMenuItem showToolStripMenuItem;
