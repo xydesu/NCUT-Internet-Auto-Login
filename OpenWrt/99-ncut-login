@@ -1,0 +1,19 @@
+#!/bin/sh
+# Hotplug trigger for NCUT Multi-WAN Auto Login
+# Path: /etc/hotplug.d/iface/99-ncut-login
+
+# 確保僅處理網路介面上線事件
+[ "$ACTION" = "ifup" ] || exit 0
+
+INTERFACES="wan wan2 wan3 wan4"
+
+# 檢查上線的介面是否在我們監控的清單內
+for iface in $INTERFACES; do
+    if [ "$INTERFACE" = "$iface" ]; then
+        logger -t "ncut-hotplug" "介面 $INTERFACE 上線，重啟對應的 ncut 登入服務..."
+        
+        # 觸發服務重載，讓 procd 重新拉起該實例
+        /etc/init.d/ncut_multi_login reload
+        break
+    fi
+done
